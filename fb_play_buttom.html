@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Screenshot Generator</title>
+<style>
+:root {
+  --bg:#f0f2f5;
+  --text:#222;
+  --box:#fff;
+  --primary:#007bff;
+  --shadow:rgba(0,0,0,0.15);
+  --loader-bg: #e0e0e0;
+}
+.dark {
+  --bg:#18191a;
+  --text:#e4e6eb;
+  --box:#242526;
+  --primary:#2d88ff;
+  --shadow:rgba(255,255,255,0.1);
+  --loader-bg: #444;
+}
+html { scroll-behavior: smooth; }
+body {
+  margin:0;
+  padding:20px;
+  font-family:Segoe UI, Roboto, sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  min-height:100vh;
+  transition:0.3s background,0.3s color;
+}
+h1 {
+  text-align:center;
+  margin-bottom:20px;
+}
+.input-box {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:15px;
+  max-width:600px;
+  width:100%;
+}
+#urlBox {
+  display:none;
+  flex:1;
+}
+input[type=text], select, input[type=number] {
+  flex:1;
+  padding:10px 15px;
+  border:1px solid #ccc;
+  border-radius:8px;
+  font-size:16px;
+  outline:none;
+  background:var(--box);
+  color:var(--text);
+  height: 45px;
+  box-sizing: border-box;
+}
+button {
+  padding:10px 20px;
+  border:none;
+  border-radius:8px;
+  background-color:var(--primary);
+  color:white;
+  font-weight:600;
+  cursor:pointer;
+  transition:0.3s;
+  height: 45px;
+  box-sizing: border-box;
+}
+button:hover {
+  opacity:0.85;
+}
+
+#chooseFileBtn, #byUrlBtn {
+    flex-shrink: 0;
+    width: 45px;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+#chooseFileBtn svg, #byUrlBtn svg {
+    width: 24px;
+    height: 24px;
+    fill: white;
+}
+
+.controls {
+  display:flex;
+  flex-wrap:wrap;
+  gap:15px;
+  align-items:center;
+  margin-bottom:15px;
+  max-width:600px;
+  width:100%;
+  justify-content:space-between;
+}
+.controls > label {
+  flex: 1 1 45%;
+  display: flex;
+  flex-direction: column;
+  font-weight: 500;
+}
+.slider-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+.slider-label span:last-child {
+    font-weight: normal;
+    font-size: 14px;
+    background-color: var(--bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+.toggle-control {
+  flex: 1 1 45%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  font-weight: 500;
+  min-height: 40px;
+}
+.custom-ratio-box {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 15px;
+}
+.custom-ratio-box span { font-weight: bold; font-size: 18px; }
+
+.custom-select-wrapper {
+    position: relative;
+    flex: 1 1 100%; /* Full width in its row */
+}
+.select-selected {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px;
+    background: var(--box);
+    color: var(--text);
+    height: 45px;
+    box-sizing: border-box;
+    cursor: pointer;
+    user-select: none;
+}
+.select-selected::after {
+    content: '';
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid var(--text);
+    transition: transform 0.3s ease;
+}
+.select-selected.select-arrow-active::after {
+    transform: rotate(180deg);
+}
+.select-items {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--box);
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    margin-top: 4px;
+    z-index: 99;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.select-items div { padding: 12px 15px; cursor: pointer; }
+.select-items div:hover { background-color: var(--bg); }
+.select-hide { display: none; }
+
+/* --- GENERATE BUTTON CONTAINER --- */
+.generate-btn-container {
+    width: 100%;
+    max-width: 600px;
+    margin-top: 10px;
+}
+#generateBtn {
+    width: 100%;
+    font-size: 18px;
+}
+
+/* --- HIGHLIGHT ANIMATION --- */
+@keyframes highlight-shake {
+    0%, 100% {
+        transform: translateX(0);
+        box-shadow: 0 0 0 0 transparent;
+    }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+    50% { box-shadow: 0 0 12px 3px var(--primary); }
+}
+.highlight {
+    animation: highlight-shake 0.6s ease;
+}
+
+.preview-section {
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  margin-top:20px;
+  gap:15px;
+  width:100%;
+  max-width:800px;
+}
+.video-mockup {
+  position:relative;
+  width:100%;
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 4px 12px var(--shadow);
+  aspect-ratio: 1 / 1;
+  background-color: #000;
+  transition: aspect-ratio 0.3s ease;
+}
+.video-mockup img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter:blur(0px) brightness(100%);
+  transition:filter 0.1s ease;
+}
+.video-mockup::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+    z-index: 1;
+    pointer-events: none;
+}
+.play-button {
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%, -50%);
+  width:70px;
+  height:70px;
+  background-color:rgba(0,0,0,0.45);
+  border:4px solid white;
+  border-radius:50%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  z-index: 2;
+}
+.play-button::after {
+  content:'';
+  display:block;
+  width:0;
+  height:0;
+  border-left:24px solid white;
+  border-top:14px solid transparent;
+  border-bottom:14px solid transparent;
+  margin-left:5px;
+}
+.video-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    box-sizing: border-box;
+    z-index: 2;
+}
+.view-count {
+  display:flex;
+  align-items:center;
+  color:white;
+  font-size:16px;
+  font-weight:600;
+  text-shadow:0 1px 3px rgba(0,0,0,0.6);
+}
+.view-count svg {
+  width:24px;
+  height:24px;
+  margin-right:5px;
+}
+.duration {
+    background-color: rgba(0,0,0,0.5);
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+canvas { display:none; }
+
+.theme-switch-wrapper { position: fixed; top: 15px; right: 15px; display: flex; align-items: center; z-index: 10; }
+.theme-switch { display: inline-block; height: 34px; position: relative; width: 60px; }
+.theme-switch input { display:none; }
+.slider { background-color: #ccc; bottom: 0; cursor: pointer; left: 0; position: absolute; right: 0; top: 0; transition: .4s; }
+.slider:before { background-color: #fff; bottom: 4px; content: ""; height: 26px; left: 4px; position: absolute; transition: .4s; width: 26px; }
+input:checked + .slider { background-color: var(--primary); }
+input:checked + .slider:before { transform: translateX(26px); }
+.slider.round { border-radius: 34px; }
+.slider.round:before { border-radius: 50%; }
+.slider .icon { position: absolute; top: 50%; transform: translateY(-50%); font-size: 16px; z-index: 1; }
+.slider .sun { left: 7px; color: #f2c500; }
+.slider .moon { right: 7px; color: #f4f4f4;}
+
+.toggle-switch-small {
+    display: inline-block;
+    height: 24px;
+    position: relative;
+    width: 44px;
+    flex-shrink: 0;
+}
+.toggle-switch-small input { display:none; }
+.slider-small { background-color: #ccc; bottom: 0; cursor: pointer; left: 0; position: absolute; right: 0; top: 0; transition: .4s; }
+.slider-small:before { background-color: #fff; bottom: 3px; content: ""; height: 18px; left: 3px; position: absolute; transition: .4s; width: 18px; }
+input:checked + .slider-small { background-color: var(--primary); }
+input:checked + .slider-small:before { transform: translateX(20px); }
+.slider-small.round { border-radius: 24px; }
+.slider-small.round:before { border-radius: 50%; }
+
+#loader { width: 100%; text-align: center; }
+.loader-text { margin-bottom: 10px; font-weight: 500; }
+.loader-bar { width: 100%; height: 10px; background-color: var(--loader-bg); border-radius: 5px; overflow: hidden; }
+.loader-progress { width: 0%; height: 100%; background-color: var(--primary); border-radius: 5px; animation: processingAnimation 3s linear forwards; }
+@keyframes processingAnimation { from { width: 0%; } to { width: 100%; } }
+
+@media (max-width:600px){
+  h1 { font-size:20px; }
+  .controls { flex-direction:column; align-items:stretch; }
+  .controls > label, .toggle-control, .custom-select-wrapper { flex-basis: 100%; }
+  .custom-ratio-box { flex-direction: column; }
+  .custom-ratio-box span { display: none; }
+  .play-button { width:50px; height:50px; }
+  .play-button::after { border-left:16px solid white; border-top:10px solid transparent; border-bottom:10px solid transparent; }
+  .video-overlay { padding: 10px; }
+  .view-count, .duration { font-size: 14px; }
+  .view-count svg { width:20px; height:20px; }
+  .duration { padding: 2px 6px; }
+}
+</style>
+</head>
+<body>
+
+<div class="theme-switch-wrapper">
+    <label class="theme-switch" for="themeToggle">
+        <input type="checkbox" id="themeToggle" />
+        <span class="slider round"> <span class="icon sun">☀️</span> <span class="icon moon">🌙</span> </span>
+    </label>
+</div>
+
+<h1 id="pageTitle">🎬 Video Screenshot Generator</h1>
+
+<div class="input-box">
+  <button id="chooseFileBtn" title="Choose Image from Device">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+  </button>
+  <button id="byUrlBtn" title="Enter Image URL">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5zm-6 8H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-2zm-3-4h8v2H8v-2z"/></svg>
+  </button>
+  <input type="file" id="fileInput" accept="image/*" style="display:none;">
+  <input type="text" id="urlBox" placeholder="Enter image URL...">
+</div>
+
+<div class="controls">
+  <label>
+    <span class="slider-label"><span>Blur:</span> <span id="blurValue">0px</span></span>
+    <input type="range" id="blurSlider" min="0" max="20" value="0">
+  </label>
+  <label>
+    <span class="slider-label"><span>Brightness:</span> <span id="brightnessValue">100%</span></span>
+    <input type="range" id="brightnessSlider" min="0" max="200" value="100">
+  </label>
+  <div class="toggle-control">
+    <span>Show Views</span>
+    <label class="toggle-switch-small" for="showViewsToggle">
+        <input type="checkbox" id="showViewsToggle" checked />
+        <span class="slider-small round"></span>
+    </label>
+  </div>
+  <div class="toggle-control">
+    <span>Show Duration</span>
+    <label class="toggle-switch-small" for="showDurationToggle">
+        <input type="checkbox" id="showDurationToggle" checked />
+        <span class="slider-small round"></span>
+    </label>
+  </div>
+  <div class="custom-select-wrapper">
+      <label>Aspect Ratio:</label>
+      <select id="aspectRatioSelect" style="display: none;">
+        <option value="1:1" selected>1:1 (Square)</option>
+        <option value="16:9">16:9 (Landscape)</option>
+        <option value="9:16">9:16 (Portrait)</option>
+        <option value="custom">Custom</option>
+      </select>
+  </div>
+</div>
+
+<div class="custom-ratio-box" id="customRatioBox">
+    <input type="number" id="customWidth" placeholder="Width (e.g., 1280)">
+    <span>x</span>
+    <input type="number" id="customHeight" placeholder="Height (e.g., 720)">
+</div>
+
+<div class="generate-btn-container">
+    <button id="generateBtn">Generate</button>
+</div>
+
+<div class="preview-section" id="previewSection">
+  <div id="loader" style="display: none;">
+      <div class="loader-text">Processing...</div>
+      <div class="loader-bar"> <div class="loader-progress"></div> </div>
+  </div>
+  <div class="video-mockup" id="videoMockup" style="display: none;">
+    <img id="previewImage" src="" alt="Preview">
+    <div class="play-button"></div>
+    <div class="video-overlay">
+        <div class="view-count" id="viewCount">
+          <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 13c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/></svg>
+          <span id="viewSpan"></span>
+        </div>
+        <div class="duration" id="durationDiv">
+            <span id="durationSpan"></span>
+        </div>
+    </div>
+  </div>
+  <button id="downloadBtn" style="display: none;">Download Image</button>
+  <canvas id="canvas"></canvas>
+</div>
+
+<script>
+// --- No changes to the logic, only element references ---
+const chooseFileBtn = document.getElementById('chooseFileBtn');
+const byUrlBtn = document.getElementById('byUrlBtn');
+const fileInput = document.getElementById('fileInput');
+const urlBox = document.getElementById('urlBox');
+const generateBtn = document.getElementById('generateBtn');
+const previewImage = document.getElementById('previewImage');
+const previewSection = document.getElementById('previewSection');
+const blurSlider = document.getElementById('blurSlider');
+const brightnessSlider = document.getElementById('brightnessSlider');
+const blurValue = document.getElementById('blurValue');
+const brightnessValue = document.getElementById('brightnessValue');
+const viewSpan = document.getElementById('viewSpan');
+const viewCountDiv = document.getElementById('viewCount');
+const durationSpan = document.getElementById('durationSpan');
+const durationDiv = document.getElementById('durationDiv');
+const aspectRatioSelect = document.getElementById('aspectRatioSelect');
+const showViewsToggle = document.getElementById('showViewsToggle');
+const showDurationToggle = document.getElementById('showDurationToggle');
+const downloadBtn = document.getElementById('downloadBtn');
+const themeToggle = document.getElementById('themeToggle');
+const canvas = document.getElementById('canvas');
+const loader = document.getElementById('loader');
+const videoMockup = document.getElementById('videoMockup');
+const customRatioBox = document.getElementById('customRatioBox');
+const customWidth = document.getElementById('customWidth');
+const customHeight = document.getElementById('customHeight');
+const pageTitle = document.getElementById('pageTitle');
+let selectedImage = null;
+let currentViewsText = "";
+let currentDurationText = "";
+
+function randomViews() {
+  const num = Math.floor(Math.random() * 99) + 1;
+  currentViewsText = num + "M";
+  viewSpan.textContent = currentViewsText;
+}
+
+function randomDuration() {
+    const minutes = Math.floor(Math.random() * 10) + 1;
+    const seconds = Math.floor(Math.random() * 60);
+    const formattedSeconds = seconds < 10 ? '0' + seconds : seconds;
+    currentDurationText = `${minutes}:${formattedSeconds}`;
+    durationSpan.textContent = currentDurationText;
+}
+randomViews();
+randomDuration();
+
+themeToggle.addEventListener('change', (e)=>{
+  document.body.classList.toggle('dark', e.target.checked);
+});
+
+byUrlBtn.addEventListener('click', ()=>{
+  urlBox.style.display = (urlBox.style.display === 'none' || urlBox.style.display === '') ? 'block' : 'none';
+});
+
+chooseFileBtn.addEventListener('click', ()=> fileInput.click());
+fileInput.addEventListener('change', ()=>{
+  if(fileInput.files[0]){
+    const reader = new FileReader();
+    reader.onload = e=>{ selectedImage = e.target.result; };
+    reader.readAsDataURL(fileInput.files[0]);
+  }
+});
+
+function updatePreviewAspectRatio() {
+    const ratioValue = aspectRatioSelect.value;
+    let cssRatio = '1 / 1';
+
+    if (ratioValue === 'custom') {
+        const w = parseInt(customWidth.value);
+        const h = parseInt(customHeight.value);
+        if (w > 0 && h > 0) {
+            cssRatio = `${w} / ${h}`;
+        }
+    } else {
+        cssRatio = ratioValue.replace(':', ' / ');
+    }
+    videoMockup.style.aspectRatio = cssRatio;
+}
+aspectRatioSelect.addEventListener('change', () => {
+    customRatioBox.style.display = aspectRatioSelect.value === 'custom' ? 'flex' : 'none';
+    updatePreviewAspectRatio();
+});
+customWidth.addEventListener('input', updatePreviewAspectRatio);
+customHeight.addEventListener('input', updatePreviewAspectRatio);
+
+function updateViewsVisibility() {
+    viewCountDiv.style.display = showViewsToggle.checked ? 'flex' : 'none';
+}
+showViewsToggle.addEventListener('change', updateViewsVisibility);
+
+function updateDurationVisibility() {
+    durationDiv.style.display = showDurationToggle.checked ? 'block' : 'none';
+}
+showDurationToggle.addEventListener('change', updateDurationVisibility);
+
+function updateFilters() {
+    previewImage.style.filter = `blur(${blurSlider.value}px) brightness(${brightnessSlider.value}%)`;
+    blurValue.textContent = `${blurSlider.value}px`;
+    brightnessValue.textContent = `${brightnessSlider.value}%`;
+}
+blurSlider.addEventListener('input', updateFilters);
+brightnessSlider.addEventListener('input', updateFilters);
+
+const VIBRATION_DURATION = 120;
+function handleSliderSnap(slider, defaultValue, threshold) {
+    const currentValue = parseFloat(slider.value);
+    if (Math.abs(currentValue - defaultValue) <= threshold) {
+        slider.value = defaultValue;
+        if (navigator.vibrate) {
+            navigator.vibrate(VIBRATION_DURATION);
+        }
+        updateFilters();
+    }
+}
+blurSlider.addEventListener('mouseup', () => handleSliderSnap(blurSlider, 0, 2));
+blurSlider.addEventListener('touchend', () => handleSliderSnap(blurSlider, 0, 2));
+brightnessSlider.addEventListener('mouseup', () => handleSliderSnap(brightnessSlider, 100, 5));
+brightnessSlider.addEventListener('touchend', () => handleSliderSnap(brightnessSlider, 100, 5));
+
+generateBtn.addEventListener('click', ()=>{
+  if(urlBox.style.display === 'block' && urlBox.value.trim() !== ''){
+    selectedImage = urlBox.value.trim();
+  }
+  if(!selectedImage){
+    alert("Please choose an image or enter a valid URL!");
+    pageTitle.scrollIntoView({ behavior: 'smooth' });
+    chooseFileBtn.classList.add('highlight');
+    byUrlBtn.classList.add('highlight');
+    
+    setTimeout(() => {
+        chooseFileBtn.classList.remove('highlight');
+        byUrlBtn.classList.remove('highlight');
+    }, 700);
+    return;
+  }
+
+  previewSection.style.display='flex';
+  videoMockup.style.display = 'none';
+  downloadBtn.style.display = 'none';
+  loader.style.display = 'block';
+  
+  updatePreviewAspectRatio();
+  updateViewsVisibility();
+  updateDurationVisibility();
+  
+  const newLoaderProgress = loader.querySelector('.loader-progress').cloneNode(true);
+  loader.querySelector('.loader-progress').replaceWith(newLoaderProgress);
+  
+  previewSection.scrollIntoView();
+  
+  setTimeout(() => {
+    loader.style.display = 'none';
+    videoMockup.style.display = 'block';
+    
+    previewImage.src = selectedImage;
+    previewImage.onload = ()=>{ 
+        updateFilters();
+        downloadBtn.style.display = 'block';
+    };
+    previewImage.onerror = ()=> alert('Failed to load image!');
+  }, 3000);
+});
+
+downloadBtn.addEventListener('click', ()=>{
+  downloadBtn.textContent = "Processing...";
+  downloadBtn.disabled = true;
+
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    let targetRatio;
+    if (aspectRatioSelect.value === 'custom') {
+        const w = parseInt(customWidth.value);
+        const h = parseInt(customHeight.value);
+        if (!(w > 0 && h > 0)) {
+            alert("Please enter a valid Width and Height for the custom ratio.");
+            downloadBtn.textContent = "Download Image";
+            downloadBtn.disabled = false;
+            return;
+        }
+        targetRatio = w / h;
+    } else {
+        const [ratioW, ratioH] = aspectRatioSelect.value.split(':').map(Number);
+        targetRatio = ratioW / ratioH;
+    }
+    
+    const imgW = img.naturalWidth;
+    const imgH = img.naturalHeight;
+    const imgRatio = imgW / imgH;
+    let sx = 0, sy = 0, sWidth = imgW, sHeight = imgH;
+
+    if (imgRatio > targetRatio) { sWidth = imgH * targetRatio; sx = (imgW - sWidth) / 2; } 
+    else if (imgRatio < targetRatio) { sHeight = imgW / targetRatio; sy = (imgH - sHeight) / 2; }
+
+    canvas.width = sWidth;
+    canvas.height = sHeight;
+
+    ctx.filter = `blur(${blurSlider.value}px) brightness(${brightnessSlider.value}%)`;
+    ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
+    ctx.filter = 'none';
+    
+    const gradient = ctx.createLinearGradient(0, canvas.height / 2, 0, canvas.height);
+    gradient.addColorStop(0, 'transparent');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.6)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
+
+    const scale = canvas.width / 800;
+    const btnSize = 70 * scale;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, btnSize / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = Math.max(2, 4 * scale);
+    ctx.stroke();
+    
+    const triangleHeight = 24 * scale;
+    const triangleBase = 28 * scale;
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.moveTo(centerX - triangleBase / 4, centerY - triangleHeight / 2);
+    ctx.lineTo(centerX + triangleBase / 2, centerY);
+    ctx.lineTo(centerX - triangleBase / 4, centerY + triangleHeight / 2);
+    ctx.closePath();
+    ctx.fill();
+    
+    const finalizeAndDownload = () => {
+        const link = document.createElement('a');
+        link.download = 'video-screenshot.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        downloadBtn.textContent = "Download Image";
+        downloadBtn.disabled = false;
+    };
+
+    const drawDuration = (callback) => {
+        if (showDurationToggle.checked) {
+            const fontSize = 16 * scale;
+            const margin = 15 * scale;
+            ctx.font = `600 ${fontSize}px Segoe UI, Roboto, sans-serif`;
+            const textMetrics = ctx.measureText(currentDurationText);
+            const textWidth = textMetrics.width;
+            const textHeight = fontSize; 
+            const padding = 8 * scale;
+            
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.beginPath();
+            ctx.roundRect(canvas.width - margin - textWidth - padding, canvas.height - margin - textHeight - (padding/2), textWidth + padding, textHeight + (padding/2), 4 * scale);
+            ctx.fill();
+
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(currentDurationText, canvas.width - margin - (padding/2), canvas.height - margin);
+        }
+        callback();
+    };
+
+    const drawViews = (callback) => {
+        if (showViewsToggle.checked) {
+            const svgString = `<svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 13c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/></svg>`;
+            const svg = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
+            const url = URL.createObjectURL(svg);
+            const viewIcon = new Image();
+            viewIcon.onload = function() {
+                const iconSize = 24 * scale;
+                const margin = 15 * scale;
+                ctx.drawImage(viewIcon, margin, canvas.height - margin - iconSize, iconSize, iconSize);
+                
+                ctx.font = `600 ${16 * scale}px Segoe UI, Roboto, sans-serif`;
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                ctx.shadowBlur = 3 * scale;
+                ctx.fillText(currentViewsText, margin + iconSize + (5 * scale), canvas.height - margin);
+                
+                URL.revokeObjectURL(url);
+                callback();
+            }
+            viewIcon.src = url;
+        } else {
+            callback();
+        }
+    };
+
+    drawViews(() => {
+        drawDuration(() => {
+            finalizeAndDownload();
+        });
+    });
+  };
+  img.src = previewImage.src;
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    updateFilters();
+    const wrapper = document.querySelector('.custom-select-wrapper');
+    const select = wrapper.querySelector('select');
+    const selectedDiv = document.createElement('div');
+    selectedDiv.className = 'select-selected';
+    selectedDiv.innerHTML = select.options[select.selectedIndex].innerHTML;
+    wrapper.appendChild(selectedDiv);
+
+    const optionsDiv = document.createElement('div');
+    optionsDiv.className = 'select-items select-hide';
+
+    Array.from(select.options).forEach(option => {
+        const itemDiv = document.createElement('div');
+        itemDiv.innerHTML = option.innerHTML;
+        itemDiv.dataset.value = option.value;
+        
+        itemDiv.addEventListener('click', function(e) {
+            selectedDiv.innerHTML = this.innerHTML;
+            select.value = this.dataset.value;
+            select.dispatchEvent(new Event('change'));
+            closeAllSelect();
+        });
+        optionsDiv.appendChild(itemDiv);
+    });
+    wrapper.appendChild(optionsDiv);
+
+    selectedDiv.addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeAllSelect(this);
+        this.nextSibling.classList.toggle('select-hide');
+        this.classList.toggle('select-arrow-active');
+    });
+
+    function closeAllSelect(elmnt) {
+        const items = document.getElementsByClassName('select-items');
+        const selected = document.getElementsByClassName('select-selected');
+        for (let i = 0; i < selected.length; i++) {
+            if (elmnt !== selected[i]) {
+                selected[i].classList.remove('select-arrow-active');
+            }
+        }
+        for (let i = 0; i < items.length; i++) {
+            if (elmnt === null || (elmnt !== null && items[i].previousSibling !== elmnt)) {
+                items[i].classList.add('select-hide');
+            }
+        }
+    }
+
+    document.addEventListener('click', closeAllSelect);
+});
+</script>
+</body>
+</html>
