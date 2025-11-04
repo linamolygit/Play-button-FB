@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Blogger OG Image Poster — Tool</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#06b6d4;--text:#e6eef8}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;background:#f7fafc;color:#0b1220;padding:18px}
+    .wrap{max-width:920px;margin:18px auto;background:#fff;border-radius:10px;padding:18px;box-shadow:0 6px 24px rgba(10,10,20,.06)}
+    h1{font-size:20px;margin:0 0 12px}
+    label{display:block;font-weight:600;margin-top:10px}
+    input[type=text], textarea, select{width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;margin-top:6px;font-size:14px}
+    textarea{min-height:120px;resize:vertical}
+    .row{display:flex;gap:10px}
+    .col{flex:1}
+    button{background:#111827;color:#fff;padding:10px 14px;border-radius:8px;border:none;cursor:pointer;margin-top:12px}
+    .small{font-size:13px;color:#374151;margin-top:6px}
+    .status{margin-top:12px;padding:10px;border-radius:8px;background:#f3f4f6;border:1px solid #e5e7eb}
+    .success{background:#ecfdf5;border-color:#bbf7d0}
+    .error{background:#fff1f2;border-color:#fecaca}
+    .hint{font-size:13px;color:#6b7280}
+    .inline{display:inline-block}
+    a.btn-link{background:#06b6d4;color:#042f2e;padding:8px 10px;border-radius:6px;text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Blogger OG Image Poster — Create post with first-image for Facebook OG</h1>
+    <p class="small">Sign in with Google, choose blog, paste image URL (public), title & description — this tool will create a Blogger post whose first element is the image so your theme meta `data:post.firstImageUrl` picks it up.</p>
+
+    <div id="authArea">
+      <label>Google Sign-In</label>
+      <div id="g_id_onload"
+           data-client_id="YOUR_GOOGLE_CLIENT_ID"
+           data-auto_prompt="false"
+           data-login_uri="">
+      </div>
+      <div class="small hint">Click to sign-in and grant <code>https://www.googleapis.com/auth/blogger</code> permission.</div>
+      <div style="margin-top:8px">
+        <button id="btnSignIn">Sign in with Google</button>
+        <button id="btnSignOut" style="display:none;background:#ef4444">Sign out</button>
+      </div>
+    </div>
+
+    <div id="formArea" style="display:none;margin-top:12px">
+      <label>Blog</label>
+      <select id="blogSelect"><option>Loading blogs…</option></select>
+
+      <label>Title</label>
+      <input id="title" type="text" placeholder="Post title — e.g. Bollywood & Hollywood 2025 — Biggest Movie Trends" />
+
+      <label>Image URL (public)</label>
+      <input id="imageUrl" type="text" placeholder="https://example.com/path/to/image.jpg" />
+
+      <label>Description (short)</label>
+      <textarea id="description" placeholder="Short article intro or description..."></textarea>
+
+      <label>Labels / Tags (comma separated)</label>
+      <input id="labels" type="text" placeholder="movie,bollywood,2025" />
+
+      <div class="row">
+        <div class="col">
+          <label>Publish now?</label>
+          <select id="publishState">
+            <option value="publish">Publish (visible)</option>
+            <option value="draft">Save as Draft</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Insert image alignment</label>
+          <select id="imgAlign">
+            <option value="center">Center</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="createBtn">Create Blogger Post</button>
+
+      <div id="status" class="status" style="display:none"></div>
+    </div>
+
+    <div style="margin-top:18px" class="hint">
+      <strong>Important:</strong> Image must be publicly accessible and ideally ≥1200×630 px. If Facebook still shows old preview, use Facebook Debugger → Scrape Again.
+    </div>
+  </div>
+
+<script>
+/* ------------- CONFIG ------------- */
+const CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"; // REPLACE
+const SCOPES = "https://www.googleapis.com/auth/blogger";
+/* ------------- END CONFIG ------------- */
+
+let token = null;
+let account = null;
+
+/* Helper */
+function el(id){return document.getElementById(id)}
+function showStatus(msg, type="info"){
+  const s = el('status');
+  s.style.display='block';
+  s.innerHTML = msg;
+  s.className = 'status' + (type==="success" ? ' success' : type==="error" ? ' error' : '');
+}
+
+/* Google Identity Services login using token client */
+let tokenClient;
+
+window.onload = () => {
+  // Initialize token client (GIS)
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (response) => {
+      if (response.error) {
+        showStatus("Auth error: " + response.error, "error");
+        return;
+      }
+      token = response.access_token;
+      showStatus("Signed in. Access token acquired.", "success");
+      postSignIn();
+    }
+  });
+
+  el('btnSignIn').onclick = () => {
+    // request access token
+    tokenClient.requestAccessToken({prompt: 'consent'}); // prompt consent to get refreshable token if possible
+  };
+
+  el('btnSignOut').onclick = () => {
+    token = null;
+    account = null;
+    el('formArea').style.display='none';
+    el('btnSignOut').style.display='none';
+    el('btnSignIn').style.display='inline-block';
+    showStatus("Signed out.");
+  };
+
+  el('createBtn').onclick = createPost;
+};
+
+async function postSignIn(){
+  // show form area & load blogs
+  el('formArea').style.display='block';
+  el('btnSignIn').style.display='none';
+  el('btnSignOut').style.display='inline-block';
+  await loadBlogs();
+}
+
+/* Load user's blogs */
+async function loadBlogs(){
+  showStatus("Loading blogs...");
+  try {
+    const resp = await fetch("https://www.googleapis.com/blogger/v3/users/self/blogs", {
+      headers: { Authorization: "Bearer " + token }
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      showStatus("Failed to load blogs: " + resp.status + " " + text, "error");
+      return;
+    }
+    const data = await resp.json();
+    const sel = el('blogSelect');
+    sel.innerHTML = '';
+    if (!data.items || data.items.length === 0) {
+      sel.innerHTML = '<option value="">No blogs found</option>';
+      showStatus("No blogs found for this account.", "error");
+      return;
+    }
+    data.items.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b.id;
+      opt.textContent = b.name + " (" + b.url + ")";
+      sel.appendChild(opt);
+    });
+    showStatus("Select a blog and fill form.");
+  } catch (err) {
+    showStatus("Error loading blogs: " + err.message, "error");
+  }
+}
+
+/* Create the post */
+async function createPost(){
+  const blogId = el('blogSelect').value;
+  const title = el('title').value.trim();
+  const imageUrl = el('imageUrl').value.trim();
+  const desc = el('description').value.trim();
+  const labels = el('labels').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const publishState = el('publishState').value;
+  const imgAlign = el('imgAlign').value;
+
+  if (!blogId || !title || !imageUrl) {
+    showStatus("Please select blog, add title and image URL.", "error");
+    return;
+  }
+
+  showStatus("Creating post…");
+
+  // Build content with the image as the very first element
+  // Ensure image tag is first in content so Blogger's data:post.firstImageUrl picks it up
+  const alignStyle = imgAlign === 'center' ? 'display:block;margin:0 auto;' : imgAlign === 'left' ? 'float:left;margin-right:12px;' : 'float:right;margin-left:12px;';
+  const content = `<div><img src="${imageUrl}" alt="" style="max-width:100%;height:auto;${alignStyle}"/></div>
+    <h2>${escapeHtml(title)}</h2>
+    <p>${escapeHtml(desc).replace(/\n/g,'<br/>')}</p>
+    <p>Generated via Blogger OG Image Poster tool.</p>`;
+
+  const body = {
+    kind: "blogger#post",
+    blog: { id: blogId },
+    title: title,
+    content: content,
+    labels: labels.length ? labels : undefined
+  };
+
+  const url = `https://www.googleapis.com/blogger/v3/blogs/${encodeURIComponent(blogId)}/posts/`;
+
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.error("API error", data);
+      showStatus("Blogger API error: " + (data.error && data.error.message ? data.error.message : JSON.stringify(data)), "error");
+      return;
+    }
+
+    // Data contains 'url' of the new post
+    const postUrl = data.url || (`https://blogger.googleusercontent.com/blog/post/${data.id}`);
+    showStatus(`Post created successfully. <a class="btn-link" target="_blank" href="${postUrl}">Open post</a><br/>Now use Facebook Debugger to 'Scrape Again'.`, "success");
+  } catch (err) {
+    showStatus("Network/API error: " + err.message, "error");
+  }
+}
+
+/* small util */
+function escapeHtml(unsafe) {
+  return unsafe
+       .replace(/&/g, "&amp;")
+       .replace(/</g, "&lt;")
+       .replace(/>/g, "&gt;")
+       .replace(/"/g, "&quot;")
+       .replace(/'/g, "&#039;");
+}
+</script>
+</body>
+  </html>
+  
