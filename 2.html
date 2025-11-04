@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blogger Facebook Post Generator Tool</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+body{font-family:Arial,sans-serif;background:#f7f7f7;color:#111;padding:15px;}
+.wrap{max-width:900px;margin:auto;background:#fff;padding:20px;border-radius:10px;box-shadow:0 4px 15px rgba(0,0,0,.1);}
+h1{font-size:20px;margin-bottom:10px;}
+label{display:block;margin-top:10px;font-weight:600;}
+input[type=text],textarea,select{width:100%;padding:8px;margin-top:5px;border:1px solid #ccc;border-radius:5px;font-size:14px;}
+textarea{min-height:100px;resize:vertical;}
+button{margin-top:15px;padding:10px 15px;background:#0366d6;color:#fff;border:none;border-radius:6px;cursor:pointer;}
+.status{margin-top:15px;padding:10px;border-radius:6px;background:#f0f0f0;display:none;}
+.success{background:#ecfdf5;border:1px solid #bbf7d0;}
+.error{background:#fff1f2;border:1px solid #fecaca;}
+img.preview{max-width:200px;margin-top:10px;border-radius:5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Blogger Facebook Post Generator</h1>
+<p>Sign in with Google, upload/select image, enter article & OG info, and tool will create a Blogger post ready for Facebook preview.</p>
+
+<!-- Google Sign-in -->
+<button id="btnSignIn">Sign in with Google</button>
+<button id="btnSignOut" style="display:none;background:#ef4444;">Sign out</button>
+
+<!-- Form -->
+<div id="formArea" style="display:none;">
+<label>Select Blog</label>
+<select id="blogSelect"><option>Loading blogs...</option></select>
+
+<label>Upload Image or Enter URL</label>
+<input type="file" id="imageFile">
+<input type="text" id="imageUrl" placeholder="Or paste image URL" style="margin-top:5px;">
+
+<img id="imgPreview" class="preview" src="" style="display:none;">
+
+<label>Destination Link (for FB preview)</label>
+<input type="text" id="destLink" value="https://facebook.com">
+
+<label>OG Title</label>
+<input type="text" id="ogTitle" placeholder="Facebook preview title">
+
+<label>OG Description</label>
+<textarea id="ogDesc" placeholder="Facebook preview description"></textarea>
+
+<label>Article Content (Plain text, tool will create H1/H2/H3)</label>
+<textarea id="articleContent" placeholder="Write your article here..."></textarea>
+
+<label>Labels / Tags (comma separated)</label>
+<input type="text" id="labels" placeholder="example: movie, bollywood">
+
+<label>Publish State</label>
+<select id="publishState">
+<option value="publish">Publish</option>
+<option value="draft">Draft</option>
+</select>
+
+<button id="createBtn">Create Blogger Post</button>
+
+<div id="status" class="status"></div>
+</div>
+</div>
+
+<script>
+// -------- CONFIG ----------
+const CLIENT_ID = "AIzaSyDxE1uNJNH1UmEIrbX-jgh3PFXQ67tzj6U"; // Replace with your Google Cloud OAuth client ID
+const SCOPES = "https://www.googleapis.com/auth/blogger";
+
+// -------- VARIABLES ----------
+let tokenClient, token = null;
+
+// -------- HELPERS ----------
+const el = id=>document.getElementById(id);
+function showStatus(msg,type="info"){ 
+    const s=el('status'); s.style.display='block'; s.innerHTML=msg;
+    s.className='status'+(type==="success"?' success':type==="error"?' error':'');
+}
+function escapeHtml(str){ return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// -------- GOOGLE SIGN IN ----------
+window.onload = ()=>{
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: (resp)=>{
+            if(resp.error){ showStatus("Auth error: "+resp.error,"error"); return; }
+            token=resp.access_token;
+            showStatus("Signed in successfully","success");
+            postSignIn();
+        }
+    });
+
+    el('btnSignIn').onclick = ()=>{ tokenClient.requestAccessToken({prompt:'consent'}); };
+    el('btnSignOut').onclick = ()=>{
+        token=null;
+        el('formArea').style.display='none';
+        el('btnSignOut').style.display='none';
+        el('btnSignIn').style.display='inline-block';
+        showStatus("Signed out");
+    }
+
+    // Preview image when URL or file selected
+    el('imageUrl').addEventListener('input',()=>{ 
+        if(el('imageUrl').value){ el('imgPreview').src=el('imageUrl').value; el('imgPreview').style.display='block'; }
+        else el('imgPreview').style.display='none';
+    });
+    el('imageFile').addEventListener('change',(e)=>{
+        const file=e.target.files[0]; if(!file) return;
+        const reader=new FileReader();
+        reader.onload=(ev)=>{ el('imgPreview').src=ev.target.result; el('imgPreview').style.display='block'; };
+        reader.readAsDataURL(file);
+    });
+
+    el('createBtn').onclick = createPost;
+};
+
+// -------- AFTER SIGN IN ----------
+async function postSignIn(){
+    el('formArea').style.display='block';
+    el('btnSignIn').style.display='none';
+    el('btnSignOut').style.display='inline-block';
+    await loadBlogs();
+}
+
+// -------- LOAD BLOGS ----------
+async function loadBlogs(){
+    showStatus("Loading blogs...");
+    try{
+        const resp = await fetch("https://www.googleapis.com/blogger/v3/users/self/blogs", { headers:{Authorization:"Bearer "+token}});
+        const data = await resp.json();
+        const sel=el('blogSelect'); sel.innerHTML='';
+        if(!data.items || data.items.length==0){ showStatus("No blogs found","error"); return; }
+        data.items.forEach(b=>{
+            const opt=document.createElement('option');
+            opt.value=b.id; opt.textContent=b.name + " ("+b.url+")";
+            sel.appendChild(opt);
+        });
+        showStatus("Select blog & fill post details","success");
+    }catch(err){ showStatus("Error loading blogs: "+err.message,"error"); }
+}
+
+// -------- CREATE POST ----------
+async function createPost(){
+    const blogId = el('blogSelect').value;
+    let imageUrl = el('imageUrl').value.trim();
+    const file = el('imageFile').files[0];
+    if(!blogId){ showStatus("Select blog","error"); return; }
+    if(!imageUrl && !file){ showStatus("Provide image file or URL","error"); return; }
+
+    showStatus("Uploading image (if file)...");
+
+    // --- UPLOAD IMAGE TO BLOGGER IF FILE ---
+    if(file){
+        const form = new FormData();
+        form.append('name', file.name);
+        form.append('data', file);
+        const uploadUrl = `https://www.googleapis.com/upload/blogger/v3/blogs/${blogId}/posts/default/media`;
+        try{
+            const resp = await fetch(uploadUrl,{
+                method:'POST',
+                headers:{ Authorization: "Bearer "+token },
+                body: form
+            });
+            const data = await resp.json();
+            if(data.url) imageUrl=data.url;
+            else{ showStatus("Image upload failed","error"); return; }
+        }catch(err){ showStatus("Image upload error: "+err.message,"error"); return; }
+    }
+
+    // --- BUILD HTML CONTENT ---
+    const title = el('ogTitle').value.trim() || "Facebook Preview Post";
+    const desc = el('ogDesc').value.trim() || "";
+    const destLink = el('destLink').value.trim() || "https://facebook.com";
+    const article = el('articleContent').value.trim() || "";
+    const labels = el('labels').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const publishState = el('publishState').value;
+
+    let content = `<div><a href="${escapeHtml(destLink)}" target="_blank"><img src="${escapeHtml(imageUrl)}" style="max-width:100%;height:auto;"></a></div>`;
+    content += `<h1>${escapeHtml(title)}</h1>`;
+    if(desc) content+=`<h2>${escapeHtml(desc)}</h2>`;
+    if(article){
+        const paragraphs = article.split('\n').filter(p=>p.trim()!=='');
+        paragraphs.forEach((p,i)=>{ content+=`<h3>Section ${i+1}</h3><p>${escapeHtml(p)}</p>`; });
+    }
+    content+=`<p>Generated via Facebook Post Generator Tool</p>`;
+
+    // --- CREATE BLOG POST ---
+    showStatus("Creating post...");
+    try{
+        const body = {kind:"blogger#post",blog:{id:blogId},title:title,content:content,labels:labels.length?labels:undefined};
+        const url = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts/`;
+        const resp = await fetch(url,{
+            method:'POST',
+            headers:{ Authorization:"Bearer "+token,"Content-Type":"application/json"},
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if(!resp.ok){ showStatus("Error creating post: "+(data.error?.message||JSON.stringify(data)),"error"); return; }
+        const postUrl = data.url || `https://blogger.googleusercontent.com/blog/post/${data.id}`;
+        showStatus(`Post created successfully! <a href="${postUrl}" target="_blank">Open Post</a>`, "success");
+    }catch(err){ showStatus("Post creation error: "+err.message,"error"); return; }
+}
+</script>
+</body>
+</html>
