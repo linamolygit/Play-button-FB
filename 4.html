@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Facebook Post Preview Link Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 transition duration-500" id="mainBody">
+  <div class="max-w-4xl mx-auto py-10 px-4">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-bold">🌐 Facebook Post Preview Link Generator</h1>
+      <button id="themeToggle" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700">🌙 Dark Mode</button>
+    </div>
+
+    <!-- Input Form -->
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg space-y-4">
+      <div>
+        <label class="font-semibold">Destination Link:</label>
+        <input type="text" id="linkInput" class="w-full p-2 border rounded" placeholder="https://example.com/post" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Image URL or Upload:</label>
+        <input type="text" id="imgLink" class="w-full p-2 border rounded mb-2" placeholder="https://image-url.jpg" />
+        <input type="file" id="imgUpload" accept="image/*" class="w-full p-2 border rounded" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Site Name:</label>
+        <input type="text" id="siteName" class="w-full p-2 border rounded" value="facebook.com" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Title:</label>
+        <input type="text" id="titleInput" class="w-full p-2 border rounded" value="Viral Video" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Description:</label>
+        <input type="text" id="descInput" class="w-full p-2 border rounded" value="xxx Video" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Fake Likes (for Preview):</label>
+        <input type="number" id="likesInput" class="w-full p-2 border rounded" value="12K" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Article Text (Normal):</label>
+        <textarea id="articleInput" rows="5" class="w-full p-2 border rounded" placeholder="Write your article here..."></textarea>
+      </div>
+
+      <button id="generateBtn" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 w-full font-semibold">Generate Preview + Code</button>
+    </div>
+
+    <!-- Facebook Preview Card -->
+    <div id="previewCard" class="hidden mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-xl p-4">
+      <img id="previewImg" class="rounded-lg w-full h-56 object-cover mb-3" src="" alt="Preview Image" />
+      <h2 id="previewTitle" class="font-bold text-lg"></h2>
+      <p id="previewDesc" class="text-gray-600 dark:text-gray-300 text-sm mb-1"></p>
+      <p id="previewLink" class="text-blue-500 text-sm mb-2"></p>
+      <p id="previewLikes" class="text-gray-500 text-xs"></p>
+    </div>
+
+    <!-- Generated Code -->
+    <div class="mt-8">
+      <h2 class="font-bold text-lg mb-2">Generated OG Meta + Article Code:</h2>
+      <textarea id="outputCode" rows="12" class="w-full p-4 border rounded bg-gray-900 text-green-400 font-mono"></textarea>
+      <button id="copyBtn" class="mt-3 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Copy Code</button>
+    </div>
+  </div>
+
+  <script>
+    const themeBtn = document.getElementById('themeToggle');
+    const body = document.getElementById('mainBody');
+    let dark = false;
+
+    themeBtn.addEventListener('click', () => {
+      dark = !dark;
+      body.classList.toggle('dark');
+      body.classList.toggle('bg-gray-900');
+      body.classList.toggle('text-white');
+      themeBtn.textContent = dark ? '☀️ Light Mode' : '🌙 Dark Mode';
+    });
+
+    document.getElementById('generateBtn').addEventListener('click', () => {
+      const link = document.getElementById('linkInput').value;
+      const title = document.getElementById('titleInput').value;
+      const desc = document.getElementById('descInput').value;
+      const site = document.getElementById('siteName').value;
+      const likes = document.getElementById('likesInput').value;
+      const article = document.getElementById('articleInput').value;
+      let imgSrc = document.getElementById('imgLink').value;
+
+      const upload = document.getElementById('imgUpload').files[0];
+      if (upload) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          imgSrc = e.target.result;
+          generatePreview(imgSrc);
+        };
+        reader.readAsDataURL(upload);
+      } else {
+        generatePreview(imgSrc);
+      }
+
+      function generatePreview(image) {
+        // Show Preview
+        document.getElementById('previewCard').classList.remove('hidden');
+        document.getElementById('previewImg').src = image;
+        document.getElementById('previewTitle').textContent = title;
+        document.getElementById('previewDesc').textContent = desc;
+        document.getElementById('previewLink').textContent = site;
+        document.getElementById('previewLikes').textContent = `${likes} Likes`;
+
+        // Generate HTML
+        const htmlFormat = `<h1 style="text-align: left;">${title}</h1>
+<h2 style="text-align: left;">Introduction</h2>
+<p><br /></p>
+<h3 style="text-align: left;">${article}</h3>`;
+
+        const ogMeta = `
+<meta property="og:title" content="${title}" />
+<meta property="og:description" content="${desc}" />
+<meta property="og:image" content="${image}" />
+<meta property="og:url" content="${link}" />
+<meta property="og:site_name" content="${site}" />`;
+
+        const finalCode = `<!-- OG Meta Tags -->\n${ogMeta}\n\n<!-- Article HTML -->\n${htmlFormat}`;
+        document.getElementById('outputCode').value = finalCode;
+      }
+    });
+
+    document.getElementById('copyBtn').addEventListener('click', () => {
+      const output = document.getElementById('outputCode');
+      output.select();
+      document.execCommand('copy');
+      alert('✅ Code Copied Successfully!');
+    });
+  </script>
+</body>
+</html>
+        
